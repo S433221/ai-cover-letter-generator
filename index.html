@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Cover Letter Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body class="bg-[#0a0f1e] text-white min-h-screen p-4 md:p-8 font-sans">
+<div class="max-w-5xl mx-auto">
+  <h1 class="text-3xl md:text-5xl font-bold text-center mt-6">AI Cover Letter Generator</h1>
+  <p class="text-center text-gray-400 mt-2">Resume + JD = Job-Ready Cover Letter in 30s</p>
+
+  <!-- API Key Box -->
+  <div class="bg-[#141c2f] p-4 rounded-xl mt-8 border border-gray-700">
+    <label class="text-sm text-gray-300">Gemini API Key (free)</label>
+    <div class="flex gap-2 mt-2">
+      <input id="apiKey" type="password" placeholder="Paste your Gemini API Key" class="flex-1 bg-[#0a0f1e] border border-gray-700 rounded-lg p-3 text-sm">
+      <button onclick="saveKey()" class="bg-cyan-500 text-black px-5 rounded-lg font-bold">Save</button>
+    </div>
+    <p class="text-xs text-gray-500 mt-2">Key is saved in your browser only. Get free key: aistudio.google.com/app/apikey</p>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6 mt-6">
+    <!-- Left -->
+    <div class="space-y-4">
+      <div class="bg-[#141c2f] p-5 rounded-xl border border-gray-700">
+        <label class="font-semibold">1. Upload Resume PDF</label>
+        <input id="pdfFile" type="file" accept=".pdf" class="mt-3 w-full text-sm text-gray-400">
+        <p id="pdfStatus" class="text-xs text-green-400 mt-2 hidden">✓ PDF Loaded</p>
+      </div>
+
+      <div class="bg-[#141c2f] p-5 rounded-xl border border-gray-700">
+        <label class="font-semibold">2. Job Details</label>
+        <input id="companyName" placeholder="Company Name (e.g. Google)" class="w-full mt-3 bg-[#0a0f1e] border border-gray-700 rounded-lg p-3 text-sm">
+        <input id="roleName" placeholder="Role (e.g. Frontend Developer)" class="w-full mt-3 bg-[#0a0f1e] border border-gray-700 rounded-lg p-3 text-sm">
+        <textarea id="jdText" rows="6" placeholder="Paste Job Description here..." class="w-full mt-3 bg-[#0a0f1e] border border-gray-700 rounded-lg p-3 text-sm"></textarea>
+        <select id="tone" class="w-full mt-3 bg-[#0a0f1e] border border-gray-700 rounded-lg p-3 text-sm">
+          <option value="Professional and confident">Professional</option>
+          <option value="Enthusiastic and fresher-friendly">Enthusiastic (Fresher)</option>
+          <option value="Formal and concise">Formal</option>
+          <option value="Creative and impactful">Creative</option>
+        </select>
+      </div>
+      <button id="genBtn" onclick="generateLetter()" class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-bold py-4 rounded-xl text-lg">Generate Cover Letter →</button>
+    </div>
+
+    <!-- Right Output -->
+    <div class="bg-[#141c2f] p-5 rounded-xl border border-gray-700 min-h-[500px]">
+      <div class="flex justify-between items-center">
+        <label class="font-semibold">Generated Cover Letter</label>
+        <button onclick="copyLetter()" class="text-xs bg-[#0a0f1e] border border-gray-700 px-3 py-1 rounded-lg">Copy</button>
+      </div>
+      <div id="output" class="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-300">Your cover letter will appear here...</div>
+      <p id="loader" class="hidden mt-4 text-cyan-400 text-sm animate-pulse">✨ Gemini is writing your cover letter...</p>
+    </div>
+  </div>
+
+  <p class="text-center text-xs text-gray-600 mt-10">Built with Gemini API + pdf.js | Open Source</p>
+</div>
+
+<script>
+let resumeText = "";
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+document.getElementById('apiKey').value = localStorage.getItem('gemini_key') || '';
+function saveKey(){ 
+  localStorage.setItem('gemini_key', document.getElementById('apiKey').value);
+  alert('API Key Saved!');
+}
+
+document.getElementById('pdfFile').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(){
+    const pdf = await pdfjsLib.getDocument({data: new Uint8Array(this.result)}).promise;
+    let text = "";
+    for(let i=1;i<=pdf.numPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(it=>it.str).join(' ') + '\n';
+    }
+    resumeText = text;
+    document.getElementById('pdfStatus').classList.remove('hidden');
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+async function generateLetter(){
+  const key = localStorage.getItem('gemini_key');
+  const jd = document.getElementById('jdText').value;
+  const company = document.getElementById('companyName').value || 'the company';
+  const role = document.getElementById('roleName').value || 'the role';
+  const tone = document.getElementById('tone').value;
+
+  if(!key) return alert('Pehle Gemini API Key daal!');
+  if(!resumeText) return alert('Resume PDF upload kar!');
+  if(!jd) return alert('Job Description daal!');
+
+  document.getElementById('loader').classList.remove('hidden');
+  document.getElementById('output').innerText = "";
+  document.getElementById('genBtn').disabled = true;
+
+  const prompt = `You are an expert cover letter writer for FAANG companies.
+Write a ${tone} cover letter for ${role} at ${company}.
+Use this resume: ${resumeText.slice(0,8000)}
+Job Description: ${jd.slice(0,6000)}
+Rules:
+- 3-4 paragraphs only, max 300 words
+- No placeholders like [Your Name], use confident closing
+- Highlight matching skills from JD
+- Start with strong hook
+- End with call to action
+Return only the cover letter text, no explanation.`;
+
+  try{
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    });
+    const data = await res.json();
+    const letter = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error generating. Check API Key.";
+    document.getElementById('output').innerText = letter;
+  }catch(e){
+    document.getElementById('output').innerText = "Error: " + e.message + ". Check API key and try again.";
+  }
+  document.getElementById('loader').classList.add('hidden');
+  document.getElementById('genBtn').disabled = false;
+}
+
+function copyLetter(){
+  const text = document.getElementById('output').innerText;
+  navigator.clipboard.writeText(text);
+  alert('Copied!');
+}
+</script>
+</body>
+</html>
